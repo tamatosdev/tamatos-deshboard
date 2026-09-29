@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tamatos Group — Finance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/dist/tabler-icons.min.css">
+<style>
+:root{
+  --surface-0:#F5F4F1; --surface-1:#FCFCFB; --surface-2:#FFFFFF;
+  --text-primary:#0B0B0B; --text-secondary:#52514E; --text-muted:#898781;
+  --text-accent:#185FA5; --text-success:#3B6D11; --text-danger:#A32D2D; --text-warning:#854F0B;
+  --bg-accent:#E6F1FB; --bg-danger:#FCEBEB; --bg-warning:#FAEEDA; --bg-success:#EAF3DE;
+  --border:rgba(11,11,11,0.10); --border-strong:rgba(11,11,11,0.18); --radius:8px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --surface-0:#141413; --surface-1:#1A1A19; --surface-2:#201F1E;
+    --text-primary:#FFFFFF; --text-secondary:#C3C2B7; --text-muted:#898781;
+    --text-accent:#85B7EB; --text-success:#97C459; --text-danger:#F09595; --text-warning:#EF9F27;
+    --bg-accent:#042C53; --bg-danger:#501313; --bg-warning:#412402; --bg-success:#173404;
+    --border:rgba(255,255,255,0.10); --border-strong:rgba(255,255,255,0.18);
+  }
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--surface-0); color:var(--text-primary);
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  font-weight:400; -webkit-font-smoothing:antialiased;
+}
+.page{max-width:1120px; margin:0 auto; padding:2.5rem 1.5rem 4rem;}
+.sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
+p{margin:0;}
+</style>
+</head>
+<body>
+<div class="page">
+<h2 class="sr-only">Tamatos Group finance dashboard: consolidated cash position, cash flow trend, accounts receivable aging with 60+ day flags, monthly profit and loss, profitability trend, retainer versus project revenue, upcoming payments, financial goal progress, and flagged unusual spend across three companies.</h2>
+<style>
+.card{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem}
+.metric{background:var(--surface-1);border-radius:var(--radius);padding:1rem}
+.mlabel{font-size:13px;color:var(--text-secondary);margin:0 0 4px}
+.mval{font-size:24px;font-weight:500;margin:0;color:var(--text-primary)}
+.mdelta{font-size:12px;margin-top:6px;display:flex;align-items:center;gap:3px}
+.sect{font-size:14px;font-weight:500;color:var(--text-primary);margin:0 0 12px;display:flex;align-items:center;gap:6px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);gap:12px}
+.row:last-child{border-bottom:none}
+.badge{font-size:11px;padding:2px 8px;border-radius:var(--radius);font-weight:500;white-space:nowrap}
+.ptrack{width:100%;height:8px;border-radius:4px;background:var(--surface-1);overflow:hidden}
+.pfill{height:100%;border-radius:4px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.rbtn{border:none;background:transparent;font-weight:400;padding:6px 16px;font-size:13px;cursor:pointer;color:var(--text-primary)}
+.rbtn+.rbtn{border-left:0.5px solid var(--border-strong)}
+.rbtn.active{background:var(--surface-1);font-weight:500}
+.rbtn:hover{background:var(--surface-1)}
+.rangetip{font-size:12px;font-weight:400;color:var(--text-muted)}
+.empty-msg{position:absolute;inset:0;margin:0;display:none;align-items:center;justify-content:center;font-size:13px;color:var(--text-muted);text-align:center;padding:0 1rem}
+</style>
+
+<!-- GLOBAL DATE-RANGE FILTER — controls the whole dashboard -->
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">
+  <span style="font-size:13px;color:var(--text-secondary);">Period</span>
+  <div id="rangeFilter" role="group" aria-label="Select reporting period" style="display:flex;border:0.5px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;">
+    <button class="rbtn" type="button" data-range="30" aria-pressed="false" onclick="setRange(30)">1M</button>
+    <button class="rbtn" type="button" data-range="90" aria-pressed="true" onclick="setRange(90)">3M</button>
+    <button class="rbtn" type="button" data-range="180" aria-pressed="false" onclick="setRange(180)">6M</button>
+    <button class="rbtn" type="button" data-range="365" aria-pressed="false" onclick="setRange(365)">1Y</button>
+    <button class="rbtn" type="button" data-range="month" aria-pressed="false" onclick="setRange('month')">This Month</button>
+    <button class="rbtn" type="button" data-range="all" aria-pressed="false" onclick="setRange('all')">All Time</button>
+  </div>
+  <span id="rangeLabel" style="font-size:12px;color:var(--text-muted);"></span>
+</div>
+
+<div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+  <div style="display:flex;border:0.5px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;">
+    <button id="btn-pkr" onclick="setCurrency('pkr')" style="border:none;background:var(--surface-1);font-weight:500;padding:6px 14px;font-size:13px;cursor:pointer;color:var(--text-primary);">PKR consolidated</button>
+    <button id="btn-native" onclick="setCurrency('native')" style="border:none;background:transparent;font-weight:400;padding:6px 14px;font-size:13px;cursor:pointer;color:var(--text-primary);">Native currency</button>
+  </div>
+</div>
+
+<!-- KPI TILES -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:1.5rem;">
+  <!-- 1. Total cash balance -->
+  <div class="metric">
+    <p class="mlabel">Total cash balance</p>
+    <p class="mval curr-val" id="kpi-cash" data-pkr="PKR 12.41M" data-native="PKR 5.64M + $24,180">PKR 12.41M</p>
+    <p class="mdelta curr-sub" id="kpi-cash-sub" style="color:var(--text-secondary);" data-pkr="Across 3 banks + cash" data-native="Faysal + BAH + cash / Wise USD">Across 3 banks + cash</p>
+  </div>
+  <!-- 2. Revenue (range-aware, summed from revenue.monthly) -->
+  <div class="metric">
+    <p class="mlabel" id="kpi-revenue-label">Revenue</p>
+    <p class="mval" id="kpi-revenue">PKR 10.8M</p>
+    <p class="mdelta" id="kpi-revenue-delta" style="color:var(--text-success);"><i class="ti ti-arrow-up-right" style="font-size:14px;" aria-hidden="true"></i>8% vs prior 30 days</p>
+  </div>
+  <!-- 3. Expenses (range-aware) -->
+  <div class="metric">
+    <p class="mlabel" id="kpi-expenses-label">Expenses</p>
+    <p class="mval" id="kpi-expenses">Loading&hellip;</p>
+    <p class="mdelta" id="kpi-expenses-delta"></p>
+  </div>
+  <!-- 4. Net profit (range-aware) -->
+  <div class="metric">
+    <p class="mlabel" id="kpi-profit-label">Net profit</p>
+    <p class="mval" id="kpi-profit">Loading&hellip;</p>
+    <p class="mdelta" id="kpi-profit-delta"></p>
+  </div>
+  <!-- Overdue AR, 60+ days (range-aware, server-filtered) -->
+  <div class="metric">
+    <p class="mlabel" id="kpi-overdue-label">Overdue AR, 60+ days</p>
+    <p class="mval" id="overdueARVal" style="color:var(--text-danger);">PKR 1.09M</p>
+    <p class="mdelta" id="overdueARCount" style="color:var(--text-danger);"><i class="ti ti-alert-triangle" style="font-size:14px;" aria-hidden="true"></i>5 invoices flagged</p>
+  </div>
+  <!-- 5. Revenue goal — LEAVE STATIC, no target data exists -->
+  <div class="metric">
+    <p class="mlabel">Revenue goal, this month</p>
+    <p class="mval">94%</p>
+    <p class="mdelta" style="color:var(--text-secondary);">PKR 10.8M of 11.5M</p>
+  </div>
+</div>
+
+<!-- 2. BANK AND CASH ACCOUNTS -->
+<div class="sect"><i class="ti ti-building-bank" style="font-size:17px;" aria-hidden="true"></i>Bank and cash accounts</div>
+<div id="bankAccountsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:1.5rem;">
+  <p style="font-size:13px;color:var(--text-muted);">Loading accounts&hellip;</p>
+</div>
+
+<!-- 6. CASH FLOW CHART -->
+<div class="sect"><i class="ti ti-chart-bar" style="font-size:17px;" aria-hidden="true"></i>Cash flow <span class="rangetip" data-range-tag></span></div>
+<div style="display:flex;gap:16px;font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+  <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#2a78d6;"></span>Money in</span>
+  <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#eb6834;"></span>Money out</span>
+</div>
+<div style="position:relative;width:100%;height:260px;margin-bottom:1.5rem;">
+  <div id="cashFlowChartWrap" style="position:absolute;inset:0;">
+    <canvas id="cashFlowChart" role="img" aria-label="Grouped bar chart of money in versus money out"></canvas>
+  </div>
+  <p class="empty-msg" id="cashFlowEmpty">No data for this period</p>
+</div>
+
+<!-- 7. P&L + 8. PROFIT MARGIN -->
+<div class="grid2" style="margin-bottom:1.5rem;">
+  <div>
+    <div class="sect"><i class="ti ti-report-money" style="font-size:17px;" aria-hidden="true"></i>P&amp;L <span class="rangetip" data-range-tag></span></div>
+    <div style="display:flex;gap:16px;font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#2a78d6;"></span>Revenue</span>
+      <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:#eb6834;"></span>Expenses</span>
+    </div>
+    <div style="position:relative;width:100%;height:220px;">
+      <div id="plChartWrap" style="position:absolute;inset:0;">
+        <canvas id="plChart" role="img" aria-label="Grouped bar chart of monthly revenue versus expenses"></canvas>
+      </div>
+      <p class="empty-msg" id="plEmpty">No data for this period</p>
+    </div>
+  </div>
+  <div>
+    <div class="sect"><i class="ti ti-trending-up" style="font-size:17px;" aria-hidden="true"></i>Profit margin trend <span class="rangetip" data-range-tag></span></div>
+    <div style="position:relative;width:100%;height:252px;">
+      <div id="profitChartWrap" style="position:absolute;inset:0;">
+        <canvas id="profitChart" role="img" aria-label="Line chart of net profit margin percentage"></canvas>
+      </div>
+      <p class="empty-msg" id="profitEmpty">No data for this period</p>
+    </div>
+  </div>
+</div>
+
+<!-- 9. AR AGING + 10. RETAINER DONUT -->
+<div class="grid2" style="margin-bottom:1.5rem;">
+  <div>
+    <div class="sect"><i class="ti ti-clock-exclamation" style="font-size:17px;" aria-hidden="true"></i>AR aging <span class="rangetip" data-range-tag></span></div>
+    <div style="position:relative;width:100%;height:220px;">
+      <div id="arAgingChartWrap" style="position:absolute;inset:0;">
+        <canvas id="arAgingChart" role="img" aria-label="Bar chart of accounts receivable by age bucket"></canvas>
+      </div>
+      <p class="empty-msg" id="arAgingEmpty">No data for this period</p>
+    </div>
+  </div>
+  <div>
+    <div class="sect"><i class="ti ti-chart-donut" style="font-size:17px;" aria-hidden="true"></i>Revenue by type <span class="rangetip" data-range-tag></span></div>
+    <div style="position:relative;width:100%;height:180px;">
+      <div id="retainerChartWrap" style="position:absolute;inset:0;">
+        <canvas id="retainerChart" role="img" aria-label="Donut chart of revenue by type"></canvas>
+      </div>
+      <p class="empty-msg" id="retainerEmpty">No data for this period</p>
+    </div>
+    <div id="retainerLegend" style="display:flex;gap:16px;font-size:12px;color:var(--text-secondary);margin-top:8px;justify-content:center;flex-wrap:wrap;"></div>
+  </div>
+</div>
+
+<!-- 11. PAYMENTS + OVERDUE INVOICES -->
+<div class="grid2" style="margin-bottom:1.5rem;">
+  <div class="card">
+    <div class="sect"><i class="ti ti-calendar-due" style="font-size:17px;" aria-hidden="true"></i>Upcoming payments <span class="rangetip" data-range-tag></span></div>
+    <div id="paymentsContainer">
+      <p style="font-size:13px;color:var(--text-muted);">Loading payments&hellip;</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="sect"><i class="ti ti-flag" style="font-size:17px;color:var(--text-danger);" aria-hidden="true"></i>Flagged: invoices 60+ days overdue <span class="rangetip" data-range-tag></span></div>
+    <div id="flaggedInvoicesContainer">
+      <p style="font-size:13px;color:var(--text-secondary);">Loading live invoices&hellip;</p>
+    </div>
+  </div>
+</div>
+
+<!-- FINANCIAL GOALS (static) + 12. FLAGGED SPEND -->
+<div class="grid2">
+  <!-- 5. Financial goals — LEAVE STATIC, no target data exists -->
+  <div class="card">
+    <div class="sect"><i class="ti ti-target-arrow" style="font-size:17px;" aria-hidden="true"></i>Financial goals</div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Consolidated revenue, monthly</span><span style="font-weight:500;">94%</span></div>
+      <div class="ptrack"><div class="pfill" style="width:94%;background:#fab219;"></div></div>
+      <p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary);">PKR 10.8M of PKR 11.5M target</p>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Consolidated profit, monthly</span><span style="font-weight:500;">111%</span></div>
+      <div class="ptrack"><div class="pfill" style="width:100%;background:#0ca30c;"></div></div>
+      <p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary);">PKR 3.9M of PKR 3.5M target</p>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Consolidated monthly expense</span><span style="font-weight:500;" id="expenseGoalPct">&mdash;</span></div>
+      <div class="ptrack"><div class="pfill" id="expenseGoalFill" style="width:0%;"></div></div>
+      <p style="margin:4px 0 0;font-size:12px;color:var(--text-secondary);" id="expenseGoalSub">Loading expense goal&hellip;</p>
+    </div>
+  </div>
+  <!-- 12. New spend flagged -->
+  <div class="card">
+    <div class="sect"><i class="ti ti-alert-triangle" style="font-size:17px;color:var(--text-warning);" aria-hidden="true"></i>New spend flagged <span class="rangetip" data-range-tag></span></div>
+    <div id="flaggedSpendContainer">
+      <p style="font-size:13px;color:var(--text-muted);">Loading flagged spend&hellip;</p>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ============================================
+// CONSTANTS & THEME (untouched)
+// ============================================
+const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+const tick = isDark ? '#c3c2b7' : '#52514e';
+const gridColor = isDark ? '#2c2c2a' : '#e1e0d9';
+const baseOpts = (yfmt) => ({
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { display: false }, ticks: { color: tick, font: { size: 11 } } },
+    y: { grid: { color: gridColor }, ticks: { color: tick, font: { size: 11 }, callback: yfmt }, beginAtZero: true }
+  }
+});
+const DONUT_COLORS = ['#2a78d6','#eb6834','#1baf7a','#fab219','#d03b3b','#8b5cf6','#ec835a','#0ca30c'];
+
+// ============================================
+// CURRENCY TOGGLE (untouched logic)
+// ============================================
+function setCurrency(mode){
+  document.querySelectorAll('.curr-val, .curr-sub').forEach(el => { el.textContent = el.dataset[mode]; });
+  const pkr = document.getElementById('btn-pkr'), nat = document.getElementById('btn-native');
+  pkr.style.background = mode==='pkr' ? 'var(--surface-1)' : 'transparent';
+  pkr.style.fontWeight = mode==='pkr' ? '500' : '400';
+  nat.style.background = mode==='native' ? 'var(--surface-1)' : 'transparent';
+  nat.style.fontWeight = mode==='native' ? '500' : '400';
+}
+
+// ============================================
+// BACKEND URL & FORMATTERS (untouched)
+// ============================================
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKQz23pBVMLNNBKp6X7zlWC0vSGUT2Ys0pFcMxLlxnBcGTu9HFBMz6-_GduP9o0OlZqA/exec";
+
+function fmtPKR(n){
+  if (n >= 1e6) return 'PKR ' + (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return 'PKR ' + (n/1e3).toFixed(0) + 'K';
+  return 'PKR ' + n.toLocaleString();
+}
+function fmtAmount(amount, currency){
+  return currency === 'USD' ? '$' + Number(amount).toLocaleString() : fmtPKR(amount);
+}
+function fmtCurrencyShort(amount, currency) {
+  if (amount == null || isNaN(amount)) return '-';
+  var c = currency || 'PKR';
+  var prefix = c === 'USD' ? '$' : c + ' ';
+  var abs = Math.abs(amount);
+  if (abs >= 1e9)  return prefix + (amount/1e9).toFixed(1) + 'B';
+  if (abs >= 1e6)  return prefix + (amount/1e6).toFixed(1) + 'M';
+  if (abs >= 1e3)  return prefix + (amount/1e3).toFixed(0) + 'K';
+  return prefix + amount.toLocaleString();
+}
+function fmtCurrencyFull(amount, currency) {
+  if (amount == null || isNaN(amount)) return '-';
+  var c = currency || 'PKR';
+  return c + ' ' + Number(amount).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
+}
+function shortMonthKey(ym) {
+  var m = parseInt(String(ym).split('-')[1], 10);
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1] || ym;
+}
+
+// ============================================
+// GLOBAL DATE-RANGE FILTER
+// 1M / 3M / 6M / 1Y / This Month / All Time
+// ============================================
+const RANGE_PRESETS = {
+  30:    { label: '1M', days: 30 },
+  90:    { label: '3M', days: 90 },
+  180:   { label: '6M', days: 180 },
+  365:   { label: '1Y', days: 365 },
+  month: { label: 'This Month' },   // 1st of the current calendar month -> today
+  all:   { label: 'All Time' }      // no range at all: null bounds, params omitted
+};
+const DEFAULT_RANGE = 90;
+
+let currentRangeKey = String(DEFAULT_RANGE);
+let currentFrom = null;   // ISO "YYYY-MM-DD" inclusive, or null when "All Time"
+let currentTo = null;     // ISO "YYYY-MM-DD" inclusive, or null when "All Time"
+let requestToken = 0;
+
+function isAllTime(){ return currentRangeKey === 'all'; }
+function activePreset(){ return RANGE_PRESETS[currentRangeKey] || RANGE_PRESETS[DEFAULT_RANGE]; }
+
+function pad2(n){ return String(n).padStart(2, '0'); }
+function isoDate(d){ return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+// Parses an ISO date without the UTC shift new Date("2026-06-01") would apply.
+function parseIsoDate(iso){
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+function fmtFullDate(d){
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function dateKeyOf(value){
+  if (!value) return null;
+  const d = (value instanceof Date) ? value : new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return isoDate(d);
+}
+// Inclusive client-side range check on a dated record (payments / flagged spend).
+// Prefers the backend's formatted date, which is rendered in the sheet's timezone and
+// therefore gives the exact sheet day no matter where the viewer is; falls back to the
+// raw timestamp (read in the viewer's local timezone).
+// "All Time" keeps every record.
+function rangeKey(item) {
+  if (!item) return null;
+  return dateKeyOf(item.dueDate) || dateKeyOf(item.dueDateRaw);
+}
+function inRange(item) {
+  if (isAllTime()) return true;
+  const key = rangeKey(item);
+  return !!key && !!currentFrom && !!currentTo && key >= currentFrom && key <= currentTo;
+}
+// Months whose midpoint sits inside [from, to] — gives exactly 1/3/6/12 buckets.
+function monthsInRange(fromIso, toIso){
+  const f = parseIsoDate(fromIso), t = parseIsoDate(toIso);
+  if (!f || !t || t < f) return [];
+  const out = [];
+  let y = t.getFullYear(), m = t.getMonth();
+  for (let guard = 0; guard < 600; guard++) {
+    if (new Date(y, m, 15).getTime() < f.getTime()) break;
+    out.unshift(y + '-' + pad2(m + 1));
+    m--; if (m < 0) { m = 11; y--; }
+  }
+  return out;
+}
+function unionKeys(...maps){
+  const seen = {};
+  maps.forEach(m => { if (m) Object.keys(m).forEach(k => { seen[k] = true; }); });
+  return Object.keys(seen).sort();
+}
+// Months to plot/sum: every month present in the data under "All Time",
+// otherwise only the buckets inside the selected window.
+function rangeMonths(dataKeys){
+  if (isAllTime()) return (dataKeys || []).slice().sort();
+  return monthsInRange(currentFrom, currentTo);
+}
+// Months that overlap [from, to] at all, even partially.
+function monthsOverlapping(fromIso, toIso){
+  const f = parseIsoDate(fromIso), t = parseIsoDate(toIso);
+  if (!f || !t || t < f) return [];
+  const out = [];
+  let y = f.getFullYear(), m = f.getMonth();
+  for (let guard = 0; guard < 600; guard++) {
+    const first = new Date(y, m, 1).getTime();
+    const last = new Date(y, m + 1, 0).getTime();
+    if (first > t.getTime()) break;
+    if (last >= f.getTime()) out.push(y + '-' + pad2(m + 1));
+    m++; if (m > 11) { m = 0; y++; }
+  }
+  return out;
+}
+// The immediately preceding window of the same length, for "% vs prior".
+// Meaningless under "All Time", so it reports no months.
+function priorRange(){
+  if (isAllTime()) return { from: null, to: null, months: [] };
+  const f = parseIsoDate(currentFrom), t = parseIsoDate(currentTo);
+  if (!f || !t) return { from: null, to: null, months: [] };
+  const span = Math.round((t - f) / 86400000);
+  const priorTo = new Date(f.getFullYear(), f.getMonth(), f.getDate() - 1);
+  // span + 1 keeps the prior window the same inclusive length as the current one
+  const priorFrom = new Date(f.getFullYear(), f.getMonth(), f.getDate() - (span + 1));
+  const from = isoDate(priorFrom), to = isoDate(priorTo);
+
+  const midpointMonths = monthsInRange(from, to);
+  if (midpointMonths.length) return { from: from, to: to, months: midpointMonths };
+
+  // A window shorter than about half a month ("This Month" early in the month)
+  // contains no month midpoint, so fall back to the months it overlaps, minus
+  // anything already counted in the current period. Keeps a comparison available.
+  const currentMonths = monthsInRange(currentFrom, currentTo);
+  const overlapping = monthsOverlapping(from, to)
+    .filter(k => currentMonths.indexOf(k) === -1);
+  return { from: from, to: to, months: overlapping };
+}
+function sumMonths(monthly, months){
+  if (!monthly || !months || !months.length) return 0;
+  return months.reduce((sum, k) => sum + (Number(monthly[k]) || 0), 0);
+}
+function rangeWords(months){
+  if (!months || !months.length) return 'selected period';
+  const fmt = (k) => shortMonthKey(k) + ' ' + String(k).split('-')[0];
+  const first = fmt(months[0]);
+  const last = fmt(months[months.length - 1]);
+  return first === last ? first : first + ' \u2013 ' + last;
+}
+// Label fragment shown next to every section title / KPI label.
+function displayWords(months){
+  if (isAllTime()) return 'all time';
+  return rangeWords(months);
+}
+function periodPhrase(){
+  if (isAllTime()) return 'all time';
+  if (currentRangeKey === 'month') return 'this month';
+  return 'the last ' + activePreset().days + ' days';
+}
+function monthCountText(n){ return n + ' month' + (n === 1 ? '' : 's'); }
+
+// "3 flagged · the last 90 days" / "3 flagged · this month" / "3 flagged · all time"
+function flaggedInPeriodText(count){
+  return count + ' flagged \u00b7 ' + periodPhrase();
+}
+
+// Builds a backend URL. Under "All Time" (or any missing bound) the date params are
+// omitted entirely so the backend runs its original unfiltered behaviour.
+function apiUrl(action){
+  const base = SCRIPT_URL + '?action=' + action;
+  if (isAllTime() || !currentFrom || !currentTo) return base;
+  return base + '&from=' + encodeURIComponent(currentFrom) + '&to=' + encodeURIComponent(currentTo);
+}
+
+// Toggles a chart canvas / "No data for this period" message pair.
+function setChartVisible(wrapId, emptyId, visible){
+  const wrap = document.getElementById(wrapId);
+  const msg = document.getElementById(emptyId);
+  if (wrap) wrap.style.display = visible ? '' : 'none';
+  if (msg) msg.style.display = visible ? 'none' : 'flex';
+}
+
+// Resolves the active preset into currentFrom/currentTo, re-fetches, re-labels.
+function setRange(key){
+  const presetKey = String(key);
+  const preset = RANGE_PRESETS[presetKey];
+  if (!preset) return;
+  currentRangeKey = presetKey;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (presetKey === 'all') {
+    currentFrom = null;
+    currentTo = null;
+  } else if (presetKey === 'month') {
+    currentFrom = isoDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    currentTo = isoDate(today);
+  } else {
+    currentTo = isoDate(today);
+    currentFrom = isoDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - preset.days));
+  }
+
+  updateRangeUI();
+  loadDashboard();
+}
+
+function updateRangeUI(){
+  const words = displayWords(monthsInRange(currentFrom, currentTo));
+  document.querySelectorAll('[data-range-tag]').forEach(el => { el.textContent = '\u00b7 ' + words; });
+  const lbl = document.getElementById('rangeLabel');
+  if (lbl) {
+    const f = parseIsoDate(currentFrom), t = parseIsoDate(currentTo);
+    lbl.textContent = (f && t) ? (fmtFullDate(f) + ' \u2013 ' + fmtFullDate(t)) : 'No date filter \u2014 every record';
+  }
+  document.querySelectorAll('#rangeFilter .rbtn').forEach(b => {
+    const active = String(b.dataset.range) === currentRangeKey;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  set('kpi-revenue-label', 'Revenue \u00b7 ' + words);
+  set('kpi-expenses-label', 'Expenses \u00b7 ' + words);
+  set('kpi-profit-label', 'Net profit \u00b7 ' + words);
+  set('kpi-overdue-label', 'Overdue AR, 60+ days \u00b7 ' + words);
+}
+
+// ============================================
+// CHART INSTANCES (created empty, updated via .update())
+// ============================================
+let cashFlowChart, plChart, profitChart, arAgingChart, retainerChart;
+let retainerCurrentKeys = [];
+
+function initCharts() {
+  cashFlowChart = new Chart(document.getElementById('cashFlowChart'), {
+    type: 'bar',
+    data: { labels: [], datasets: [
+      { label: 'Money in', data: [], backgroundColor: '#2a78d6', borderRadius: 4 },
+      { label: 'Money out', data: [], backgroundColor: '#eb6834', borderRadius: 4 }
+    ]},
+    options: baseOpts(v => v + 'M')
+  });
+  plChart = new Chart(document.getElementById('plChart'), {
+    type: 'bar',
+    data: { labels: [], datasets: [
+      { label: 'Revenue', data: [], backgroundColor: '#2a78d6', borderRadius: 4 },
+      { label: 'Expenses', data: [], backgroundColor: '#eb6834', borderRadius: 4 }
+    ]},
+    options: baseOpts(v => v + 'M')
+  });
+  profitChart = new Chart(document.getElementById('profitChart'), {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      label: 'Profit margin', data: [],
+      borderColor: '#1baf7a', backgroundColor: 'rgba(27,175,122,0.1)', fill: true,
+      tension: 0.3, borderWidth: 2, pointBackgroundColor: '#1baf7a',
+      pointBorderColor: isDark ? '#1a1a19' : '#fcfcfb', pointBorderWidth: 2, pointRadius: 4
+    }]},
+    options: baseOpts(v => v + '%')
+  });
+  arAgingChart = new Chart(document.getElementById('arAgingChart'), {
+    type: 'bar',
+    data: { labels: ['0-30 days','31-60 days','61-90 days','90+ days'], datasets: [
+      { data: [0,0,0,0], backgroundColor: ['#0ca30c','#fab219','#ec835a','#d03b3b'], borderRadius: 4 }
+    ]},
+    options: baseOpts(v => v + 'M')
+  });
+  retainerChart = new Chart(document.getElementById('retainerChart'), {
+    type: 'doughnut',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderColor: isDark ? '#1a1a19' : '#fcfcfb', borderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+  });
+}
+
+// ============================================
+// LOAD DASHBOARD — one pass per range, per-section try/catch
+//   ?action=overdue&from&to   -> server-filtered by Due Date
+//   ?action=breakdown&from&to -> server-filtered by Due Date
+//   ?action=all              -> raw monthly/dated data, filtered client-side
+// ============================================
+function fetchJSON(url){
+  return fetch(url).then(res => {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  });
+}
+
+async function loadDashboard() {
+  const token = ++requestToken;
+
+  let all, overdue, breakdown;
+  try {
+    const results = await Promise.all([
+      fetchJSON(apiUrl('all')),
+      fetchJSON(apiUrl('overdue')),
+      fetchJSON(apiUrl('breakdown'))
+    ]);
+    if (token !== requestToken) return;   // a newer range was picked mid-flight
+    all = results[0]; overdue = results[1]; breakdown = results[2];
+    if (!all.success) throw new Error(all.error || 'API success=false');
+  } catch (err) {
+    console.error('loadDashboard fetch failed:', err);
+    return;
+  }
+
+  // Point-in-time balances: deliberately NOT affected by the range filter
+  try { renderCashBalance(all.accounts); } catch(e) { console.error('cash balance:', e); }
+  try { renderBankAccounts(all.accounts); } catch(e) { console.error('bank accounts:', e); }
+
+  try { renderRevenueKPI(all.revenue); } catch(e) { console.error('revenue kpi:', e); }
+  try { renderExpensesKPI(all.expenseSummary); } catch(e) { console.error('expenses kpi:', e); }
+  try { renderNetProfitKPI(all.revenue, all.expenseSummary); } catch(e) { console.error('net profit kpi:', e); }
+  // Financial goals 3rd bar: this calendar month, not the selected range
+  try { renderExpenseGoal(all.expenseSummary); } catch(e) { console.error('expense goal:', e); }
+
+  try { updateCashFlowChart(all.accounts); } catch(e) { console.error('cash flow chart:', e); }
+  try { updatePLChart(all.revenue, all.expenseSummary); } catch(e) { console.error('pl chart:', e); }
+  try { updateProfitChart(all.revenue, all.expenseSummary); } catch(e) { console.error('profit chart:', e); }
+
+  // Already range-filtered server-side
+  try { updateARAgingChart(breakdown); } catch(e) { console.error('ar aging:', e); }
+  try { updateTypeChart(breakdown); } catch(e) { console.error('type chart:', e); }
+  try { renderOverdue(overdue); } catch(e) { console.error('overdue invoices:', e); }
+
+  // Filtered client-side off the raw dated records
+  try { renderPayments(all.expenses); } catch(e) { console.error('payments:', e); }
+  try { renderFlaggedSpend(all.flagged); } catch(e) { console.error('flagged spend:', e); }
+}
+
+// ============================================
+// FINANCIAL GOALS — 3rd bar: live consolidated monthly expense
+// Reads the current calendar month straight off expenseSummary.monthly, so it is
+// deliberately independent of the global date-range filter bar.
+// ============================================
+const MONTHLY_EXPENSE_TARGET_PKR = 5000000;
+
+function renderExpenseGoal(es) {
+  const pctEl = document.getElementById('expenseGoalPct');
+  const fillEl = document.getElementById('expenseGoalFill');
+  const subEl = document.getElementById('expenseGoalSub');
+
+  const now = new Date();
+  const monthKey = now.getFullYear() + '-' + pad2(now.getMonth() + 1);
+  const actual = (es && es.success && es.monthly) ? es.monthly[monthKey] : undefined;
+
+  // No paid expense recorded for this calendar month yet
+  if (actual === null || actual === undefined || isNaN(actual)) {
+    pctEl.textContent = '\u2014';
+    fillEl.style.width = '0%';
+    fillEl.style.background = 'var(--text-muted)';
+    subEl.textContent = 'No expense data this month yet';
+    return;
+  }
+
+  const value = Number(actual);
+  const pct = Math.round((value / MONTHLY_EXPENSE_TARGET_PKR) * 100);
+
+  // Inverted versus the other two bars: lower spend is better.
+  // Bands are applied to the ROUNDED pct so the colour can never disagree with
+  // the number shown (e.g. 4,999,999 and 5,000,000 both display "100%").
+  let color;
+  if (pct >= 100) color = '#d03b3b';        // over budget
+  else if (pct >= 80) color = '#fab219';   // approaching budget
+  else color = '#0ca30c';                  // comfortably under
+
+  pctEl.textContent = pct + '%';
+  fillEl.style.width = Math.min(Math.max(pct, 0), 100) + '%';   // clamp so 150% can't overflow
+  fillEl.style.background = color;
+  subEl.textContent = fmtPKR(value) + ' of ' + fmtPKR(MONTHLY_EXPENSE_TARGET_PKR) + ' target';
+}
+
+// ============================================
+// 1. CASH BALANCE KPI — point-in-time, never range-filtered
+// ============================================
+function renderCashBalance(accounts) {
+  const el = document.getElementById('kpi-cash');
+  const sub = document.getElementById('kpi-cash-sub');
+  if (!accounts || !accounts.success) {
+    el.textContent = 'Could not load';
+    el.style.color = 'var(--text-danger)';
+    sub.textContent = '';
+    return;
+  }
+  const list = accounts.accounts || [];
+  let pkrSum = 0, usdSum = 0;
+  list.forEach(a => {
+    if (a.currency === 'USD') usdSum += (a.balance || 0);
+    else pkrSum += (a.balance || 0);
+  });
+  const totalPKR = accounts.totalCashPKR != null ? accounts.totalCashPKR : pkrSum;
+
+  el.dataset.pkr = fmtCurrencyShort(totalPKR, 'PKR');
+  el.dataset.native = usdSum > 0
+    ? fmtCurrencyShort(pkrSum, 'PKR') + ' + $' + usdSum.toLocaleString()
+    : fmtCurrencyShort(pkrSum, 'PKR');
+  sub.dataset.pkr = 'Across ' + list.length + ' account' + (list.length !== 1 ? 's' : '');
+  sub.dataset.native = list.map(a => a.account).join(' / ') || '';
+
+  const pkrActive = document.getElementById('btn-pkr').style.background !== 'transparent';
+  el.textContent = pkrActive ? el.dataset.pkr : el.dataset.native;
+  sub.textContent = pkrActive ? sub.dataset.pkr : sub.dataset.native;
+}
+
+// ============================================
+// 2. BANK ACCOUNTS CARDS — point-in-time, never range-filtered
+// ============================================
+function renderBankAccounts(accounts) {
+  const grid = document.getElementById('bankAccountsGrid');
+  if (!accounts || !accounts.success) {
+    grid.innerHTML = '<p style="font-size:13px;color:var(--text-danger);">Could not load accounts</p>';
+    return;
+  }
+  const list = accounts.accounts || [];
+  if (list.length === 0) {
+    grid.innerHTML = '<p style="font-size:13px;color:var(--text-muted);">No accounts found</p>';
+    return;
+  }
+  const icons = { 'Wise': 'ti-world', 'Cash': 'ti-cash' };
+  grid.innerHTML = list.map(a => {
+    const icon = icons[a.account] || 'ti-building-bank';
+    return `<div class="card">
+      <i class="ti ${icon}" style="font-size:20px;color:var(--text-accent);" aria-hidden="true"></i>
+      <p style="font-size:13px;color:var(--text-secondary);margin:8px 0 2px;">${a.account}</p>
+      <p style="font-size:17px;font-weight:500;margin:0;">${fmtCurrencyFull(a.balance, a.currency)}</p>
+    </div>`;
+  }).join('');
+}
+
+// ============================================
+// 3. REVENUE KPI — sums revenue.monthly for the selected range
+// ============================================
+function renderRevenueKPI(revenue) {
+  const el = document.getElementById('kpi-revenue');
+  const delta = document.getElementById('kpi-revenue-delta');
+  if (!revenue || !revenue.success) {
+    el.textContent = 'Could not load';
+    el.style.color = 'var(--text-danger)';
+    delta.textContent = '';
+    return;
+  }
+  const months = rangeMonths(Object.keys(revenue.monthly || {}));
+  const prior = priorRange();
+  const total = sumMonths(revenue.monthly, months);
+  const prev = sumMonths(revenue.monthly, prior.months);
+
+  el.textContent = fmtPKR(total);
+  el.style.color = 'var(--text-primary)';
+
+  if (isAllTime()) {
+    // No meaningful preceding period to compare against — omit the line entirely.
+    delta.textContent = '';
+  } else if (prev > 0) {
+    const pct = Math.round((total - prev) / prev * 100);
+    const up = pct >= 0;
+    delta.style.color = up ? 'var(--text-success)' : 'var(--text-danger)';
+    delta.innerHTML = '<i class="ti ti-arrow-' + (up ? 'up-right' : 'down-right') + '" style="font-size:14px;" aria-hidden="true"></i>'
+      + Math.abs(pct) + '% vs prior ' + monthCountText(prior.months.length);
+  } else {
+    delta.style.color = 'var(--text-secondary)';
+    delta.textContent = 'Not enough data for comparison';
+  }
+}
+
+// ============================================
+// 4. EXPENSES KPI — sums expenseSummary.monthly for the selected range
+// ============================================
+function renderExpensesKPI(es) {
+  const el = document.getElementById('kpi-expenses');
+  const delta = document.getElementById('kpi-expenses-delta');
+  if (!es || !es.success) {
+    el.textContent = 'Could not load';
+    el.style.color = 'var(--text-danger)';
+    delta.textContent = '';
+    return;
+  }
+  const months = rangeMonths(Object.keys(es.monthly || {}));
+  const prior = priorRange();
+  const total = sumMonths(es.monthly, months);
+  const prev = sumMonths(es.monthly, prior.months);
+
+  el.textContent = fmtPKR(total);
+  el.style.color = 'var(--text-primary)';
+
+  if (isAllTime()) {
+    delta.textContent = '';
+  } else if (prev > 0) {
+    const pct = Math.round((total - prev) / prev * 100);
+    const up = pct >= 0;
+    delta.style.color = up ? 'var(--text-warning)' : 'var(--text-success)';
+    delta.innerHTML = '<i class="ti ti-arrow-' + (up ? 'up-right' : 'down-right') + '" style="font-size:14px;" aria-hidden="true"></i>'
+      + Math.abs(pct) + '% vs prior ' + monthCountText(prior.months.length);
+  } else {
+    delta.textContent = '';
+  }
+}
+
+// ============================================
+// 5. NET PROFIT KPI — range-scoped revenue minus range-scoped expenses
+// ============================================
+function renderNetProfitKPI(revenue, es) {
+  const el = document.getElementById('kpi-profit');
+  const delta = document.getElementById('kpi-profit-delta');
+  if (!revenue || !revenue.success || !es || !es.success) {
+    el.textContent = 'Could not load';
+    el.style.color = 'var(--text-danger)';
+    delta.textContent = '';
+    return;
+  }
+  const months = rangeMonths(unionKeys(revenue.monthly, es.monthly));
+  const rev = sumMonths(revenue.monthly, months);
+  const exp = sumMonths(es.monthly, months);
+  const profit = rev - exp;
+  el.textContent = fmtPKR(profit);
+  if (rev > 0) {
+    const margin = Math.round(profit / rev * 100);
+    el.style.color = profit >= 0 ? 'var(--text-primary)' : 'var(--text-danger)';
+    delta.style.color = profit >= 0 ? 'var(--text-success)' : 'var(--text-danger)';
+    delta.textContent = margin + '% margin';
+  } else {
+    el.style.color = 'var(--text-primary)';
+    delta.textContent = '';
+  }
+}
+
+// ============================================
+// 6. OVERDUE INVOICES (KPI + list) — server-filtered by the range
+// ============================================
+function renderOverdue(data) {
+  const container = document.getElementById('flaggedInvoicesContainer');
+  const valEl = document.getElementById('overdueARVal');
+  const countEl = document.getElementById('overdueARCount');
+  if (!data || !data.success) {
+    valEl.textContent = 'Could not load';
+    valEl.style.color = 'var(--text-danger)';
+    countEl.textContent = '';
+    container.innerHTML = '<p style="font-size:13px;color:var(--text-danger);">Could not load invoices</p>';
+    return;
+  }
+  const invoices = data.invoices || [];
+  const pkrTotal = invoices
+    .filter(inv => inv.currency !== 'USD')
+    .reduce((sum, inv) => sum + (inv.amount || 0), 0);
+
+  if (invoices.length === 0) {
+    valEl.textContent = fmtPKR(0);
+    valEl.style.color = 'var(--text-primary)';
+    countEl.innerHTML = '<i class="ti ti-check" style="font-size:14px;" aria-hidden="true"></i>' + flaggedInPeriodText(0);
+    countEl.style.color = 'var(--text-secondary)';
+    container.innerHTML = '<p style="font-size:13px;color:var(--text-secondary);">No data for this period &mdash; no invoices 60+ days overdue'
+      + (isAllTime() ? ' at all.' : ' in ' + periodPhrase() + '.') + '</p>';
+    return;
+  }
+
+  valEl.textContent = fmtPKR(pkrTotal);
+  valEl.style.color = 'var(--text-danger)';
+  countEl.innerHTML = '<i class="ti ti-alert-triangle" style="font-size:14px;" aria-hidden="true"></i>'
+    + flaggedInPeriodText(invoices.length);
+  countEl.style.color = 'var(--text-danger)';
+
+  container.innerHTML = invoices.map(inv => `
+      <div class="row">
+        <div>
+          <p style="margin:0;font-size:14px;">INV-${inv.invNumber} &middot; ${inv.client}</p>
+          <p style="margin:2px 0 0;font-size:12px;color:var(--text-secondary);">${inv.company} &middot; ${inv.overdueDays} days</p>
+        </div>
+        <p style="margin:0;font-size:14px;font-weight:500;color:var(--text-danger);">${fmtAmount(inv.amount, inv.currency)}</p>
+      </div>
+    `).join('');
+}
+
+// ============================================
+// 7. CASH FLOW CHART — months inside the range only
+// ============================================
+function updateCashFlowChart(accounts) {
+  if (!accounts || !accounts.success || !accounts.monthly) {
+    setChartVisible('cashFlowChartWrap', 'cashFlowEmpty', false);
+    return;
+  }
+  const months = rangeMonths(Object.keys(accounts.monthly));
+  // /1e6 so the axis tick formatter's "M" suffix is truthful, matching the
+  // P&L and AR aging charts
+  const inflows = months.map(k => ((accounts.monthly[k] && accounts.monthly[k]['in']) || 0) / 1e6);
+  const outflows = months.map(k => ((accounts.monthly[k] && accounts.monthly[k]['out']) || 0) / 1e6);
+
+  if (!months.length || (!inflows.some(v => v) && !outflows.some(v => v))) {
+    setChartVisible('cashFlowChartWrap', 'cashFlowEmpty', false);
+    return;
+  }
+
+  cashFlowChart.data.labels = months.map(shortMonthKey);
+  cashFlowChart.data.datasets[0].data = inflows;
+  cashFlowChart.data.datasets[1].data = outflows;
+  setChartVisible('cashFlowChartWrap', 'cashFlowEmpty', true);
+  cashFlowChart.resize();
+  cashFlowChart.update();
+}
+
+// ============================================
+// 8. P&L CHART (chart.update)
+// ============================================
+function updatePLChart(revenue, es) {
+  if (!revenue || !revenue.success || !revenue.monthly) {
+    setChartVisible('plChartWrap', 'plEmpty', false);
+    return;
+  }
+  const expMonthly = (es && es.success && es.monthly) ? es.monthly : {};
+  const months = rangeMonths(unionKeys(revenue.monthly, expMonthly));
+  const revVals = months.map(k => (revenue.monthly[k] || 0) / 1e6);
+  const expVals = months.map(k => (expMonthly[k] || 0) / 1e6);
+
+  if (!months.length || (!revVals.some(v => v) && !expVals.some(v => v))) {
+    setChartVisible('plChartWrap', 'plEmpty', false);
+    return;
+  }
+
+  plChart.data.labels = months.map(shortMonthKey);
+  plChart.data.datasets[0].data = revVals;
+  plChart.data.datasets[1].data = expVals;
+  setChartVisible('plChartWrap', 'plEmpty', true);
+  plChart.resize();
+  plChart.update();
+}
+
+// ============================================
+// 9. PROFIT MARGIN CHART (chart.update)
+// ============================================
+function updateProfitChart(revenue, es) {
+  if (!revenue || !revenue.success || !revenue.monthly) {
+    setChartVisible('profitChartWrap', 'profitEmpty', false);
+    return;
+  }
+  const expMonthly = (es && es.success && es.monthly) ? es.monthly : {};
+  const months = rangeMonths(Object.keys(revenue.monthly));
+  const revVals = months.map(k => revenue.monthly[k] || 0);
+  if (!months.length || !revVals.some(v => v)) {
+    setChartVisible('profitChartWrap', 'profitEmpty', false);
+    return;
+  }
+  const margins = months.map(k => {
+    const r = revenue.monthly[k] || 0;
+    const e = expMonthly[k] || 0;
+    if (r === 0) return null;
+    return Math.round((r - e) / r * 100);
+  });
+
+  profitChart.data.labels = months.map(shortMonthKey);
+  profitChart.data.datasets[0].data = margins;
+  setChartVisible('profitChartWrap', 'profitEmpty', true);
+  profitChart.resize();
+  profitChart.update();
+}
+
+// ============================================
+// 10. AR AGING CHART — breakdown arrives range-filtered
+// ============================================
+function updateARAgingChart(breakdown) {
+  if (!breakdown || !breakdown.success || !breakdown.aging) {
+    setChartVisible('arAgingChartWrap', 'arAgingEmpty', false);
+    return;
+  }
+  const aging = breakdown.aging;
+  const vals = [
+    (aging['0-30'] || 0) / 1e6,
+    (aging['31-60'] || 0) / 1e6,
+    (aging['61-90'] || 0) / 1e6,
+    (aging['90+'] || 0) / 1e6
+  ];
+  if (!vals.some(v => v)) {
+    setChartVisible('arAgingChartWrap', 'arAgingEmpty', false);
+    return;
+  }
+  arAgingChart.data.datasets[0].data = vals;
+  setChartVisible('arAgingChartWrap', 'arAgingEmpty', true);
+  arAgingChart.resize();
+  arAgingChart.update();
+}
+
+// ============================================
+// 11. RETAINER / TYPE DONUT (dynamic keys) — breakdown arrives range-filtered
+// ============================================
+function updateTypeChart(breakdown) {
+  const legend = document.getElementById('retainerLegend');
+  if (!breakdown || !breakdown.success || !breakdown.typeBreakdown) {
+    setChartVisible('retainerChartWrap', 'retainerEmpty', false);
+    legend.innerHTML = '';
+    return;
+  }
+  const tb = breakdown.typeBreakdown;
+  const keys = Object.keys(tb);
+  const total = keys.reduce((s, k) => s + (tb[k] || 0), 0);
+
+  if (!keys.length || total <= 0) {
+    setChartVisible('retainerChartWrap', 'retainerEmpty', false);
+    legend.innerHTML = '';
+    return;
+  }
+
+  const keysChanged = JSON.stringify(keys) !== JSON.stringify(retainerCurrentKeys);
+  if (keysChanged) {
+    retainerChart.destroy();
+    retainerCurrentKeys = keys.slice();
+    const vals = keys.map(k => tb[k] || 0);
+    const colors = keys.map((_, i) => DONUT_COLORS[i % DONUT_COLORS.length]);
+    retainerChart = new Chart(document.getElementById('retainerChart'), {
+      type: 'doughnut',
+      data: { labels: keys, datasets: [{ data: vals, backgroundColor: colors, borderColor: isDark ? '#1a1a19' : '#fcfcfb', borderWidth: 2 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+    });
+  } else {
+    retainerChart.data.datasets[0].data = keys.map(k => tb[k] || 0);
+  }
+  setChartVisible('retainerChartWrap', 'retainerEmpty', true);
+  retainerChart.resize();
+  retainerChart.update();
+
+  legend.innerHTML = keys.map((k, i) => {
+    const pct = total > 0 ? Math.round((tb[k] || 0) / total * 100) : 0;
+    return `<span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:${DONUT_COLORS[i % DONUT_COLORS.length]};"></span>${k} ${pct}%</span>`;
+  }).join('');
+}
+
+// ============================================
+// 12. UPCOMING PAYMENTS — client-side filter on each item's due date
+// ============================================
+function renderPayments(expenses) {
+  const c = document.getElementById('paymentsContainer');
+  if (!expenses || !expenses.success) {
+    c.innerHTML = '<p style="font-size:13px;color:var(--text-danger);">Could not load payments</p>';
+    return;
+  }
+  const filtered = (expenses.payments || []).filter(inRange);
+
+  if (filtered.length === 0) {
+    c.innerHTML = '<p style="font-size:13px;color:var(--text-muted);">No data for this period</p>';
+    return;
+  }
+  c.innerHTML = filtered.map(p => {
+    const raw = p.dueDateRaw || p.dueDate;
+    const dueBadge = paymentBadge(raw);
+    return `<div class="row">
+      <div>
+        <p style="margin:0;font-size:14px;">${p.vendor} &middot; ${p.company}</p>
+        <p style="margin:2px 0 0;font-size:12px;color:var(--text-secondary);">${p.account || ''}</p>
+      </div>
+      <div style="text-align:right;">
+        <p style="margin:0;font-size:14px;font-weight:500;">${fmtCurrencyFull(p.amount, p.currency)}</p>
+        ${dueBadge}
+      </div>
+    </div>`;
+  }).join('');
+}
+function paymentBadge(dateStr) {
+  if (!dateStr) return '';
+  const due = new Date(dateStr);
+  const now = new Date();
+  const days = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+  const label = (due.getMonth() + 1) + '/' + due.getDate();
+  let bg, fg;
+  if (days <= 3) { bg = 'var(--bg-danger)'; fg = 'var(--text-danger)'; }
+  else if (days <= 7) { bg = 'var(--bg-warning)'; fg = 'var(--text-warning)'; }
+  else { bg = 'var(--surface-1)'; fg = 'var(--text-secondary)'; }
+  return `<span class="badge" style="background:${bg};color:${fg};">${label}</span>`;
+}
+
+// ============================================
+// 13. FLAGGED SPEND — client-side filter on each item's due date
+// ============================================
+function renderFlaggedSpend(flagged) {
+  const c = document.getElementById('flaggedSpendContainer');
+  if (!flagged || !flagged.success) {
+    c.innerHTML = '<p style="font-size:13px;color:var(--text-danger);">Could not load flagged spend</p>';
+    return;
+  }
+  const filtered = (flagged.flagged || []).filter(inRange);
+
+  if (filtered.length === 0) {
+    c.innerHTML = '<p style="font-size:13px;color:var(--text-muted);">No data for this period</p>';
+    return;
+  }
+  c.innerHTML = filtered.map(e => {
+    return `<div class="row">
+      <div>
+        <p style="margin:0;font-size:14px;">${e.vendor}</p>
+        <p style="margin:2px 0 0;font-size:12px;color:var(--text-secondary);">${e.company} &middot; ${e.category || ''}</p>
+      </div>
+      <p style="margin:0;font-size:14px;font-weight:500;">${fmtCurrencyFull(e.amount, e.currency)}</p>
+    </div>`;
+  }).join('');
+}
+
+// ============================================
+// INIT
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  setRange(DEFAULT_RANGE);
+
+  // Auto-refresh reuses whichever range is currently active
+  setInterval(() => { loadDashboard(); }, 5 * 60 * 1000);
+});
+</script>
+</body>
+</html>
