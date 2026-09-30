@@ -58,7 +58,58 @@ p{margin:0;}
 .rbtn:hover{background:var(--surface-1)}
 .rangetip{font-size:12px;font-weight:400;color:var(--text-muted)}
 .empty-msg{position:absolute;inset:0;margin:0;display:none;align-items:center;justify-content:center;font-size:13px;color:var(--text-muted);text-align:center;padding:0 1rem}
+.auth-input{width:100%;padding:9px 11px;font-size:14px;font-family:inherit;color:var(--text-primary);background:var(--surface-1);border:0.5px solid var(--border-strong);border-radius:var(--radius);outline:none}
+.auth-input:focus{border-color:var(--text-accent)}
+.auth-btn{width:100%;margin-top:12px;padding:9px 14px;font-size:14px;font-weight:500;font-family:inherit;cursor:pointer;color:var(--surface-2);background:var(--text-primary);border:none;border-radius:var(--radius)}
+.auth-btn:disabled{opacity:0.5;cursor:not-allowed}
+.auth-link{font-size:12px;color:var(--text-accent);cursor:pointer;text-decoration:none}
+.auth-link:hover{text-decoration:underline}
+.auth-link.disabled{color:var(--text-muted);cursor:not-allowed}
+.auth-link.disabled:hover{text-decoration:none}
+.auth-err{font-size:12px;color:var(--text-danger);background:var(--bg-danger);border-radius:var(--radius);padding:8px 10px;margin-top:10px;display:none}
+.auth-err.locked{color:var(--text-warning);background:var(--bg-warning)}
+.auth-input:disabled{opacity:0.55;cursor:not-allowed}
+.auth-link.prominent{font-weight:500;text-decoration:underline}
+.auth-link.prominent.disabled{text-decoration:none;opacity:0.7}
+.auth-link.prominent:hover:not(.disabled){text-decoration:underline}
+.auth-bar{display:none;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
+.auth-bar button{background:transparent;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:4px 10px;font-size:12px;font-family:inherit;color:var(--text-primary);cursor:pointer}
+.auth-bar button:hover{background:var(--surface-1)}
 </style>
+
+<!-- LOGIN GATE: covers the whole dashboard until a valid code is verified -->
+<div id="authOverlay" style="position:fixed;inset:0;background:var(--surface-0);z-index:1000;display:none;align-items:center;justify-content:center;padding:1.5rem;">
+  <div class="card" style="width:100%;max-width:380px;padding:1.75rem;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <i class="ti ti-shield-lock" style="font-size:18px;color:var(--text-accent);" aria-hidden="true"></i>
+      <h1 style="font-size:16px;font-weight:500;margin:0;">Tamatos Finance</h1>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin:4px 0 1.25rem;">Sign in to view the dashboard</p>
+
+    <!-- step 1: email -->
+    <div id="authStep1">
+      <label for="authEmailInput" style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:6px;">Work email</label>
+      <input id="authEmailInput" class="auth-input" type="email" autocomplete="email" placeholder="you@tamatos.com"
+             onkeydown="if(event.key==='Enter') authRequestCode();">
+      <button id="authSendBtn" class="auth-btn" type="button" onclick="authRequestCode()">Send code</button>
+      <p id="authError1" class="auth-err" role="alert"></p>
+    </div>
+
+    <!-- step 2: code -->
+    <div id="authStep2" style="display:none;">
+      <p style="font-size:13px;color:var(--text-secondary);margin:0 0 10px;">Enter the 6-digit code sent to <span id="authEmailSent" style="color:var(--text-primary);"></span></p>
+      <input id="authCodeInput" class="auth-input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
+             placeholder="000000" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6);"
+             onkeydown="if(event.key==='Enter') authVerifyCode();">
+      <button id="authVerifyBtn" class="auth-btn" type="button" onclick="authVerifyCode()">Verify</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;">
+        <a id="authBackLink" class="auth-link" href="#" onclick="authBackToEmail(event)">&larr; back</a>
+        <a id="authResendLink" class="auth-link" href="#" onclick="authResend(event)">Resend code</a>
+      </div>
+      <p id="authError2" class="auth-err" role="alert"></p>
+    </div>
+  </div>
+</div>
 
 <!-- GLOBAL DATE-RANGE FILTER — controls the whole dashboard -->
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">
@@ -74,7 +125,12 @@ p{margin:0;}
   <span id="rangeLabel" style="font-size:12px;color:var(--text-muted);"></span>
 </div>
 
-<div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;gap:12px;flex-wrap:wrap;">
+  <div id="authBar" class="auth-bar">
+    <i class="ti ti-user-circle" style="font-size:15px;" aria-hidden="true"></i>
+    <span id="authEmail"></span>
+    <button type="button" onclick="logout()">Logout</button>
+  </div>
   <div style="display:flex;border:0.5px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;">
     <button id="btn-pkr" onclick="setCurrency('pkr')" style="border:none;background:var(--surface-1);font-weight:500;padding:6px 14px;font-size:13px;cursor:pointer;color:var(--text-primary);">PKR consolidated</button>
     <button id="btn-native" onclick="setCurrency('native')" style="border:none;background:transparent;font-weight:400;padding:6px 14px;font-size:13px;cursor:pointer;color:var(--text-primary);">Native currency</button>
@@ -1067,14 +1123,206 @@ function renderFlaggedSpend(flagged) {
 }
 
 // ============================================
+// EMAIL OTP LOGIN GATE
+// Gates the dashboard UI only. The Apps Script data actions are not
+// token-checked, so someone with the SCRIPT_URL could still call ?action=all
+// directly. Accepted limitation for now.
+// ============================================
+const AUTH_KEY = 'tamatos_dashboard_auth';
+const AUTH_EMAIL_KEY = 'tamatos_dashboard_email';
+const RESEND_COOLDOWN_SECONDS = 30;
+let authEmail = '';
+let resendTimer = null;
+let resendSecondsLeft = 0;
+let authLocked = false;
+
+// Locked out (5 wrong attempts) is a different state from a simple typo, so it
+// gets its own styling and points at "request a new code" as the next action.
+function setAuthLocked(locked){
+  authLocked = locked;
+  const err = document.getElementById('authError2');
+  const codeInput = document.getElementById('authCodeInput');
+  const verifyBtn = document.getElementById('authVerifyBtn');
+  const resendLink = document.getElementById('authResendLink');
+  err.classList.toggle('locked', locked);
+  codeInput.disabled = locked;
+  verifyBtn.disabled = locked;
+  if (locked) verifyBtn.textContent = verifyBtn.dataset.idle || 'Verify';
+  resendLink.classList.toggle('prominent', locked);
+  paintResendLink();
+}
+
+function authSetError(step, message){
+  const el = document.getElementById(step === 1 ? 'authError1' : 'authError2');
+  el.textContent = message || '';
+  el.style.display = message ? 'block' : 'none';
+}
+
+function authShowStep(step){
+  setAuthLocked(false);
+  document.getElementById('authStep1').style.display = step === 1 ? 'block' : 'none';
+  document.getElementById('authStep2').style.display = step === 2 ? 'block' : 'none';
+  authSetError(1, '');
+  authSetError(2, '');
+}
+
+function authSetBusy(btnId, busy, busyLabel){
+  const btn = document.getElementById(btnId);
+  if (busy){
+    btn.dataset.idle = btn.textContent;
+    btn.textContent = busyLabel;
+    btn.disabled = true;
+  } else {
+    btn.textContent = btn.dataset.idle || btn.textContent;
+    btn.disabled = false;
+  }
+}
+
+function showAuthOverlay(){
+  document.getElementById('authOverlay').style.display = 'flex';
+  authShowStep(1);
+}
+
+function hideAuthOverlay(){
+  document.getElementById('authOverlay').style.display = 'none';
+}
+
+function paintResendLink(){
+  const link = document.getElementById('authResendLink');
+  const label = authLocked ? 'Request a new code' : 'Resend';
+  if (resendSecondsLeft > 0){
+    link.textContent = label + ' in ' + resendSecondsLeft + 's';
+    link.classList.add('disabled');
+  } else {
+    link.textContent = label;
+    link.classList.remove('disabled');
+  }
+}
+
+function startResendCooldown(){
+  if (resendTimer) clearInterval(resendTimer);
+  resendSecondsLeft = RESEND_COOLDOWN_SECONDS;
+  paintResendLink();
+  resendTimer = setInterval(() => {
+    resendSecondsLeft -= 1;
+    if (resendSecondsLeft <= 0){
+      if (resendTimer) clearInterval(resendTimer);
+      resendTimer = null;
+    }
+    paintResendLink();
+  }, 1000);
+}
+
+async function authRequestCode(){
+  const input = document.getElementById('authEmailInput');
+  const email = (input.value || '').trim();
+  if (!email){
+    authSetError(1, 'Enter your work email.');
+    return;
+  }
+  authSetError(1, '');
+  authSetBusy('authSendBtn', true, 'Sending\u2026');
+  try {
+    const res = await fetch(SCRIPT_URL + '?action=requestOTP&email=' + encodeURIComponent(email));
+    const data = await res.json();
+    if (!data.success){
+      authSetError(1, data.error || 'Could not send the code.');
+      return;
+    }
+    authEmail = email;
+    document.getElementById('authEmailSent').textContent = email;
+    document.getElementById('authCodeInput').value = '';
+    authShowStep(2);
+    document.getElementById('authCodeInput').focus();
+    startResendCooldown();
+  } catch (err) {
+    authSetError(1, 'Network error. Please try again.');
+  } finally {
+    authSetBusy('authSendBtn', false);
+  }
+}
+
+async function authVerifyCode(){
+  const code = (document.getElementById('authCodeInput').value || '').trim();
+  if (!code){
+    authSetError(2, 'Enter the 6-digit code.');
+    return;
+  }
+  authSetError(2, '');
+  authSetBusy('authVerifyBtn', true, 'Verifying\u2026');
+  try {
+    const res = await fetch(SCRIPT_URL + '?action=verifyOTP&email=' + encodeURIComponent(authEmail) + '&code=' + encodeURIComponent(code));
+    const data = await res.json();
+    if (!data.success){
+      const err = data.error || 'Verification failed.';
+      if (/too many incorrect attempts/i.test(err)){
+        authSetError(2, err);
+        setAuthLocked(true);
+        return;
+      }
+      authSetError(2, err);
+      document.getElementById('authCodeInput').value = '';
+      document.getElementById('authCodeInput').focus();
+      return;
+    }
+    sessionStorage.setItem(AUTH_KEY, 'true');
+    sessionStorage.setItem(AUTH_EMAIL_KEY, data.email || authEmail);
+    if (resendTimer) clearInterval(resendTimer);
+    hideAuthOverlay();
+    startApp();
+  } catch (err) {
+    authSetError(2, 'Network error. Please try again.');
+  } finally {
+    // A locked-out verify must stay disabled
+    if (!authLocked) authSetBusy('authVerifyBtn', false);
+  }
+}
+
+function authResend(event){
+  if (event) event.preventDefault();
+  if (resendSecondsLeft > 0) return;      // cooldown active
+  authRequestCode();
+}
+
+function authBackToEmail(event){
+  if (event) event.preventDefault();
+  if (resendTimer) clearInterval(resendTimer);
+  resendTimer = null;
+  resendSecondsLeft = 0;
+  paintResendLink();
+  authShowStep(1);
+  document.getElementById('authEmailInput').focus();
+}
+
+function logout(){
+  sessionStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(AUTH_EMAIL_KEY);
+  location.reload();
+}
+
+// ============================================
 // INIT
 // ============================================
-document.addEventListener('DOMContentLoaded', () => {
+// Everything that touches the Apps Script endpoints lives in here, so it only
+// runs once the OTP gate has been passed.
+function startApp(){
+  const bar = document.getElementById('authBar');
+  if (bar){
+    bar.style.display = 'flex';
+    document.getElementById('authEmail').textContent = sessionStorage.getItem(AUTH_EMAIL_KEY) || '';
+  }
   initCharts();
   setRange(DEFAULT_RANGE);
-
-  // Auto-refresh reuses whichever range is currently active
   setInterval(() => { loadDashboard(); }, 5 * 60 * 1000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // sessionStorage (not localStorage) so closing the tab logs you out again
+  if (sessionStorage.getItem(AUTH_KEY) === 'true') {
+    startApp();
+  } else {
+    showAuthOverlay();   // no data-loading calls until verified
+  }
 });
 </script>
 </body>

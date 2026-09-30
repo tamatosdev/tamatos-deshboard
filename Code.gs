@@ -16,6 +16,8 @@ function doGet(e) {
   const toDate = toRangeEnd_(params.to);
 
   try {
+    if (action === "requestotp") return requestOTP(params.email);
+    if (action === "verifyotp") return verifyOTP(params.email, params.code);
     if (action === "revenue") return getRevenueSummary();
     if (action === "breakdown") return getBreakdown(fromDate, toDate);
     if (action === "expenses") return getUpcomingPayments();
@@ -30,7 +32,83 @@ function doGet(e) {
   }
 }
 
-// ---- Shared helpers ----
+// ============================================
+// EMAIL OTP LOGIN
+// NOTE: this gates the dashboard UI only. The data actions below are not
+// token-checked, so anyone holding the SCRIPT_URL can still call ?action=all
+// directly. Accepted limitation for now.
+// ============================================
+const ALLOWED_EMAILS = [
+  "ebad.khan@tamatos.com"
+  // Add up to 5 more once provided, e.g.:
+  // , "someone@tamatos.com"
+];
+const OTP_EXPIRY_MINUTES = 10;
+
+function requestOTP(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  const allowed = ALLOWED_EMAILS.map(e => e.toLowerCase());
+  if (!normalized || allowed.indexOf(normalized) === -1) {
+    return jsonResponse({ success: false, error: "This email is not authorized." });
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000;
+  PropertiesService.getScriptProperties().setProperty("otp_" + normalized, code + "|" + expiresAt);
+  // A fresh code clears any previous brute-force lockout
+  PropertiesService.getScriptProperties().deleteProperty("otp_attempts_" + normalized);
+
+  try {
+    MailApp.sendEmail({
+      to: normalized,
+      subject: "Your Tamatos Dashboard login code",
+      body: "Your login code is: " + code + "\n\nThis code expires in " + OTP_EXPIRY_MINUTES + " minutes.\n\nIf you didn't request this, ignore this email."
+    });
+  } catch (err) {
+    return jsonResponse({ success: false, error: "Could not send email: " + err.toString() });
+  }
+
+  return jsonResponse({ success: true, message: "Code sent" });
+}
+
+function verifyOTP(email, code) {
+  const normalized = String(email || "").trim().toLowerCase();
+  const submittedCode = String(code || "").trim();
+  const props = PropertiesService.getScriptProperties();
+  const key = "otp_" + normalized;
+  const attemptsKey = "otp_attempts_" + normalized;
+  const stored = props.getProperty(key);
+
+  if (!stored) {
+    return jsonResponse({ success: false, error: "No code was requested for this email, or it already expired." });
+  }
+
+  const parts = stored.split("|");
+  if (Date.now() > Number(parts[1])) {
+    props.deleteProperty(key);
+    return jsonResponse({ success: false, error: "Code expired. Please request a new code." });
+  }
+
+  // Brute-force lockout: 5 incorrect attempts within one code's lifetime.
+  // Checked before the code comparison, so the correct code is refused too.
+  const attempts = Number(props.getProperty(attemptsKey) || "0");
+  if (attempts >= 5) {
+    return jsonResponse({ success: false, error: "Too many incorrect attempts. Please request a new code." });
+  }
+
+  if (submittedCode !== parts[0]) {
+    props.setProperty(attemptsKey, String(attempts + 1));
+    return jsonResponse({ success: false, error: "Incorrect code." });
+  }
+
+  props.deleteProperty(key); // one-time use
+  props.deleteProperty(attemptsKey);
+  return jsonResponse({ success: true, token: Utilities.getUuid(), email: normalized });
+}
+
+// ============================================
+// Shared helpers
+// ============================================
 function getTab_(tabName) {
   const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
   const sheet = spreadsheet.getSheetByName(tabName);
